@@ -260,26 +260,25 @@ function renderPDRBTrend(trendData, provinces) {
     Plotly.newPlot('chart-pdrb-trend', traces, layout, plotlyConfig);
 }
 
-// --- PROVINCE DETAIL ---
-async function loadProvinceDetail(name) {
-    const res = await fetch(`/api/province/${encodeURIComponent(name)}`);
-    const d = await res.json();
-    if (d.error) return;
+// --- PROVINCE DETAIL (STATIC) ---
+function loadProvinceDetail(name, provincesData, trendData) {
+    const d = provincesData.find(p => p.Provinsi === name);
+    if (!d) return;
 
     document.getElementById('detail-name').textContent = d.Provinsi;
     document.getElementById('detail-score').innerHTML = d.Economic_Resilience_Index + '<span>/10</span>';
     document.getElementById('detail-pdrb').textContent = 'Rp ' + d.PDRB_Triliun + ' T';
     document.getElementById('detail-qris').textContent = d.Volume_QRIS_Juta + ' Juta';
     document.getElementById('detail-poverty').textContent = d.Tingkat_Kemiskinan_Persen + '%';
-    document.getElementById('detail-digital').textContent = d.Digital_Adoption_Score + '/100';
+    document.getElementById('detail-digital').textContent = (d.Digital_Adoption_Score || 0) + '/100';
 
     const badgeEl = document.getElementById('detail-badge');
     const cls = d.Status === 'Tangguh' ? 'badge-tangguh' : d.Status === 'Transisi' ? 'badge-transisi' : 'badge-rentan';
     badgeEl.className = 'badge ' + cls;
     badgeEl.textContent = d.Status;
 
-    // Recommendation
-    const rec = d.recommendation;
+    // Recommendation (Local Logic)
+    const rec = getStaticRecommendation(d);
     const recEl = document.getElementById('detail-recommendation');
     recEl.className = 'recommendation ' + rec.level;
     recEl.innerHTML = `
@@ -289,8 +288,47 @@ async function loadProvinceDetail(name) {
     `;
 
     // Radar
-    if (d.PDRB_Triliun && d.Volume_QRIS_Juta) {
-        renderRadar(d);
+    renderRadar(d);
+}
+
+function getStaticRecommendation(data) {
+    const status = data.Status;
+    if (status === 'Rentan') {
+        return {
+            level: 'critical',
+            title: 'Prioritas Tinggi - Rentan',
+            text: 'Tingkat adopsi digital rendah dan rentan guncangan ekonomi. Fokuskan APBD untuk subsidi internet UMKM, pelatihan literasi pembayaran digital dasar, dan insentif merchant QRIS di pasar tradisional.',
+            actions: [
+                'Subsidi koneksi internet untuk UMKM di daerah terpencil',
+                'Program pelatihan literasi digital dan keuangan massal',
+                'Kerja sama dengan Bank Pembangunan Daerah untuk edukasi QRIS',
+                'Insentif pajak untuk merchant yang mengadopsi pembayaran digital'
+            ]
+        };
+    } else if (status === 'Tangguh') {
+        return {
+            level: 'optimal',
+            title: 'Optimal - Tangguh',
+            text: 'Ekonomi sangat tangguh dengan digitalisasi tinggi. Pemda dapat beralih ke program pendanaan scale-up UMKM menuju ekspor dan penguatan regulasi keamanan siber.',
+            actions: [
+                'Program scale-up UMKM digital menuju pasar ekspor',
+                'Penguatan infrastruktur keamanan siber daerah',
+                'Pengembangan ekosistem fintech dan startup digital',
+                'Menjadi model percontohan untuk daerah lain'
+            ]
+        };
+    } else {
+        return {
+            level: 'transition',
+            title: 'Masa Transisi - Moderat',
+            text: 'Daerah dalam masa transisi menuju digitalisasi penuh. Tingkatkan kampanye penggunaan QRIS di pasar tradisional dan perluas kerja sama BPD dengan Fintech.',
+            actions: [
+                'Kampanye penggunaan QRIS di pasar tradisional dan warung',
+                'Kerja sama BPD dengan platform fintech untuk inklusi keuangan',
+                'Peningkatan infrastruktur jaringan internet di daerah pelosok',
+                'Pilot project smart village berbasis pembayaran digital'
+            ]
+        };
     }
 }
 
