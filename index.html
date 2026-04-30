@@ -317,7 +317,7 @@
 
     <!-- PROVINCE SELECTOR -->
     <div style="max-width:380px;margin-bottom:20px">
-        <select class="custom-select" id="province-select" onchange="loadProvinceDetail(this.value)">
+        <select class="custom-select" id="province-select" onchange="loadProvinceDetailStatic(this.value)">
             <option value="">— Pilih Provinsi —</option>
         </select>
     </div>
@@ -496,11 +496,11 @@
         }
     });
 
-    function loadProvinceDetailStatic(name) {
+    window.loadProvinceDetailStatic = function(name) {
         if (!name || !window._provincesData) return;
         document.getElementById('detail-panel').style.display = 'block';
         loadProvinceDetail(name, window._provincesData, window._trendData);
-    }
+    };
 </script>
 
 </body>
