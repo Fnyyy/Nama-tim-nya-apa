@@ -200,13 +200,16 @@ function renderScatter(data) {
 }
 
 // --- TREND LINE CHART ---
-function renderTrendChart(trendData, provinces) {
+function renderTrendChart(trendData, provinces, scenario = 'none') {
     const top5 = [...provinces].sort((a, b) => b.Economic_Resilience_Index - a.Economic_Resilience_Index).slice(0, 5);
     const lineColors = [azureColors.tangguh, azureColors.light, azureColors.blue, azureColors.purple, azureColors.transisi];
     
-    const traces = top5.map((prov, i) => {
+    let traces = [];
+    top5.forEach((prov, i) => {
         const provTrend = trendData.filter(t => t.Provinsi === prov.Provinsi);
-        return {
+        if(provTrend.length === 0) return;
+        
+        traces.push({
             x: provTrend.map(t => t.Quarter),
             y: provTrend.map(t => t.Volume_QRIS_Juta),
             name: prov.Provinsi,
@@ -215,7 +218,28 @@ function renderTrendChart(trendData, provinces) {
             line: { color: lineColors[i], width: 2, shape: 'spline' },
             marker: { size: 4, color: lineColors[i] },
             hovertemplate: '<b>' + prov.Provinsi + '</b><br>%{x}<br>QRIS: %{y:.1f} Juta<extra></extra>'
-        };
+        });
+
+        if (scenario !== 'none') {
+            const lastData = provTrend[provTrend.length - 1];
+            const q4Val = lastData.Volume_QRIS_Juta;
+            const multiplier = scenario === 'optimistic' ? 1.25 : 1.10;
+            const qRate = Math.pow(multiplier, 1/4);
+            
+            let fX = [lastData.Quarter, 'Q1 2026', 'Q2 2026', 'Q3 2026', 'Q4 2026'];
+            let fY = [q4Val, q4Val*qRate, q4Val*Math.pow(qRate,2), q4Val*Math.pow(qRate,3), q4Val*Math.pow(qRate,4)];
+            
+            traces.push({
+                x: fX,
+                y: fY,
+                name: prov.Provinsi + ' (Forecast)',
+                type: 'scatter',
+                mode: 'lines',
+                line: { color: lineColors[i], width: 2, dash: 'dot', shape: 'spline' },
+                showlegend: false,
+                hoverinfo: 'skip'
+            });
+        }
     });
 
     const layout = {
@@ -231,13 +255,16 @@ function renderTrendChart(trendData, provinces) {
 }
 
 // --- PDRB TREND ---
-function renderPDRBTrend(trendData, provinces) {
+function renderPDRBTrend(trendData, provinces, scenario = 'none') {
     const top5 = [...provinces].sort((a, b) => b.PDRB_Triliun - a.PDRB_Triliun).slice(0, 5);
     const colors = [azureColors.tangguh, azureColors.light, azureColors.blue, azureColors.purple, azureColors.transisi];
     
-    const traces = top5.map((prov, i) => {
+    let traces = [];
+    top5.forEach((prov, i) => {
         const provTrend = trendData.filter(t => t.Provinsi === prov.Provinsi);
-        return {
+        if(provTrend.length === 0) return;
+
+        traces.push({
             x: provTrend.map(t => t.Quarter),
             y: provTrend.map(t => t.PDRB_Triliun),
             name: prov.Provinsi,
@@ -246,7 +273,29 @@ function renderPDRBTrend(trendData, provinces) {
             line: { color: colors[i], width: 2, shape: 'spline' },
             marker: { size: 4 },
             hovertemplate: '<b>' + prov.Provinsi + '</b><br>%{x}<br>PDRB: Rp%{y:.1f} T<extra></extra>'
-        };
+        });
+
+        if (scenario !== 'none') {
+            const lastData = provTrend[provTrend.length - 1];
+            const q4Val = lastData.PDRB_Triliun;
+            // Assumed PDRB growth elasticity = 0.5 of QRIS growth
+            const multiplier = scenario === 'optimistic' ? 1.125 : 1.05;
+            const qRate = Math.pow(multiplier, 1/4);
+            
+            let fX = [lastData.Quarter, 'Q1 2026', 'Q2 2026', 'Q3 2026', 'Q4 2026'];
+            let fY = [q4Val, q4Val*qRate, q4Val*Math.pow(qRate,2), q4Val*Math.pow(qRate,3), q4Val*Math.pow(qRate,4)];
+            
+            traces.push({
+                x: fX,
+                y: fY,
+                name: prov.Provinsi + ' (Forecast)',
+                type: 'scatter',
+                mode: 'lines',
+                line: { color: colors[i], width: 2, dash: 'dot', shape: 'spline' },
+                showlegend: false,
+                hoverinfo: 'skip'
+            });
+        }
     });
 
     const layout = {
@@ -260,6 +309,15 @@ function renderPDRBTrend(trendData, provinces) {
     Plotly.newPlot('chart-pdrb-trend', traces, layout, plotlyConfig);
 }
 
+// --- FORECAST TRIGGER ---
+window.applyForecast = function() {
+    const scenario = document.getElementById('forecast-scenario').value;
+    if(window._provincesData && window._trendData) {
+        renderTrendChart(window._trendData, window._provincesData, scenario);
+        renderPDRBTrend(window._trendData, window._provincesData, scenario);
+    }
+};
+
 // --- PROVINCE DETAIL (STATIC) ---
 function loadProvinceDetail(name, provincesData, trendData) {
     const d = provincesData.find(p => p.Provinsi === name);
@@ -271,6 +329,8 @@ function loadProvinceDetail(name, provincesData, trendData) {
     document.getElementById('detail-qris').textContent = d.Volume_QRIS_Juta + ' Juta';
     document.getElementById('detail-poverty').textContent = d.Tingkat_Kemiskinan_Persen + '%';
     document.getElementById('detail-digital').textContent = (d.Digital_Adoption_Score || 0) + '/100';
+    document.getElementById('detail-population').textContent = (d.Populasi_Juta || 0).toFixed(1);
+    document.getElementById('detail-sector').textContent = d.Sektor_Utama || 'Umum';
 
     const badgeEl = document.getElementById('detail-badge');
     const cls = d.Status === 'Tangguh' ? 'badge-tangguh' : d.Status === 'Transisi' ? 'badge-transisi' : 'badge-rentan';
@@ -293,40 +353,42 @@ function loadProvinceDetail(name, provincesData, trendData) {
 
 function getStaticRecommendation(data) {
     const status = data.Status;
+    const sector = data.Sektor_Utama || "Sektor Umum";
+
     if (status === 'Rentan') {
         return {
             level: 'critical',
-            title: 'Prioritas Tinggi - Rentan',
-            text: 'Tingkat adopsi digital rendah dan rentan guncangan ekonomi. Fokuskan APBD untuk subsidi internet UMKM, pelatihan literasi pembayaran digital dasar, dan insentif merchant QRIS di pasar tradisional.',
+            title: 'Fase Rentan — Titik Kritis',
+            text: `Tingkat adopsi digital rendah. Untuk bertransisi menjadi wilayah yang lebih kuat, strategi harus difokuskan pada penguatan literasi dan potensi <strong>${sector}</strong>.`,
             actions: [
-                'Subsidi koneksi internet untuk UMKM di daerah terpencil',
-                'Program pelatihan literasi digital dan keuangan massal',
-                'Kerja sama dengan Bank Pembangunan Daerah untuk edukasi QRIS',
-                'Insentif pajak untuk merchant yang mengadopsi pembayaran digital'
+                `Subsidi koneksi internet & edukasi finansial di sektor ${sector}`,
+                'Program literasi digital untuk UMKM daerah pelosok',
+                'Pemberian insentif penggunaan QRIS di pusat transaksi lokal',
+                '<strong>Langkah ke Fase Transisi:</strong> Targetkan minimal 30% pelaku usaha beralih ke pembayaran digital.'
             ]
         };
-    } else if (status === 'Tangguh') {
+    } else if (status === 'Transisi') {
         return {
-            level: 'optimal',
-            title: 'Optimal - Tangguh',
-            text: 'Ekonomi sangat tangguh dengan digitalisasi tinggi. Pemda dapat beralih ke program pendanaan scale-up UMKM menuju ekspor dan penguatan regulasi keamanan siber.',
+            level: 'transition',
+            title: 'Fase Transisi — Momentum Akselerasi',
+            text: `Daerah berkembang pesat. Maksimalkan perputaran modal pada sektor <strong>${sector}</strong> untuk mendorong daerah ini naik kelas ke level Tangguh.`,
             actions: [
-                'Program scale-up UMKM digital menuju pasar ekspor',
-                'Penguatan infrastruktur keamanan siber daerah',
-                'Pengembangan ekosistem fintech dan startup digital',
-                'Menjadi model percontohan untuk daerah lain'
+                `Perluas adopsi QRIS pada seluruh rantai pasok ${sector}`,
+                'Kerjasama Pemda & Fintech untuk pendanaan modal kerja UMKM',
+                'Digitalisasi penerimaan pajak & retribusi daerah secara menyeluruh',
+                '<strong>Langkah ke Fase Tangguh:</strong> Integrasi sistem smart-economy dan perkuat kolaborasi digital antar wilayah.'
             ]
         };
     } else {
         return {
-            level: 'transition',
-            title: 'Masa Transisi - Moderat',
-            text: 'Daerah dalam masa transisi menuju digitalisasi penuh. Tingkatkan kampanye penggunaan QRIS di pasar tradisional dan perluas kerja sama BPD dengan Fintech.',
+            level: 'optimal',
+            title: 'Fase Tangguh — Pusat Resiliensi',
+            text: `Ekonomi kuat & tahan banting. Tugas utamanya adalah mempertahankan dominasi sambil terus mengekspansi <strong>${sector}</strong> ke skala lebih luas.`,
             actions: [
-                'Kampanye penggunaan QRIS di pasar tradisional dan warung',
-                'Kerja sama BPD dengan platform fintech untuk inklusi keuangan',
-                'Peningkatan infrastruktur jaringan internet di daerah pelosok',
-                'Pilot project smart village berbasis pembayaran digital'
+                'Scale-up UMKM digital siap ekspor ke kancah nasional/internasional',
+                'Otomatisasi pengolahan data transaksi real-time untuk pengambilan kebijakan Pemda',
+                'Penguatan regulasi perlindungan data dan literasi siber masyarakat',
+                '<strong>Cara Bertahan:</strong> Terus inisiasi inovasi layanan digital dan jadilah pusat percontohan (benchmark) bagi provinsi lain.'
             ]
         };
     }
